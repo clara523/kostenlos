@@ -692,21 +692,7 @@
 
 
 
-// Beispiel für Stripe
-const stripe = Stripe('YOUR_STRIPE_PUBLIC_KEY');
-const checkoutButton = document.getElementById('checkout-button');
-checkoutButton.addEventListener('click', () => {
-  stripe.redirectToCheckout({
-    lineItems: [{ price: 'PRICE_ID', quantity: 1 }],
-    mode: 'payment',
-    successUrl: window.location.href + '/success',
-    cancelUrl: window.location.href + '/cancel',
-  }).then((result) => {
-    if (result.error) {
-      alert(result.error.message);
-    }
-  });
-});
+
 
 
 
