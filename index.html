@@ -1,0 +1,583 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Online Shop</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes wiggle {
+      0% { transform: rotate(0deg); }
+      25% { transform: rotate(2deg); }
+      50% { transform: rotate(0deg); }
+      75% { transform: rotate(-2deg); }
+      100% { transform: rotate(0deg); }
+    }
+    .wiggle:hover {
+      animation: wiggle 0.3s ease-in-out;
+    }
+    .glow:hover {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Mock API functions (replace with real API calls)
+    const mockFetchProducts = () => Promise.resolve([
+      { id: 1, category: 'T-Shirts', title: 'Classic Tee', price: 30, image: 'https://via.placeholder.com/150' },
+      { id: 2, category: 'Hoodies', title: 'Cozy Hoodie', price: 50, image: 'https://via.placeholder.com/150' },
+    ]);
+
+    const mockImportPrintifyProducts = () => Promise.resolve([
+      { id: 3, category: 'Caps', title: 'Baseball Cap', price: 25, image: 'https://via.placeholder.com/150' },
+    ]);
+
+    const mockProcessPayment = (provider, amount) => Promise.resolve({ success: true, amount });
+
+    const mockPrintifyOrder = (productId, price) => Promise.resolve({ success: true, cost: 8 });
+
+    const mockDomainStatus = () => Promise.resolve({ domain: 'mystreetstyle.com', ssl: true, status: 'active' });
+
+    // Main App Component
+    function App() {
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [products, setProducts] = useState([]);
+      const [cart, setCart] = useState([]);
+      const [categories, setCategories] = useState(['T-Shirts', 'Hoodies', 'Caps']);
+      const [selectedCategory, setSelectedCategory] = useState(null);
+      const [shopSettings, setShopSettings] = useState({
+        shopName: 'StreetStyle',
+        agb: 'Allgemeine Geschäftsbedingungen...',
+        bank: { holder: '', iban: '', bic: '' },
+        payment: { stripe: false, paypal: false, stripeKey: '', paypalClientId: '', paypalSecret: '' },
+        payoutFrequency: 'monthly',
+        vatId: '',
+        domain: { provider: '', apiKey: '', url: '' },
+        banner: null,
+        slogan: 'Willkommen bei STREETSTYLE – jetzt unsere Kollektion entdecken!',
+      });
+      const [salesData, setSalesData] = useState({ totalRevenue: 0, orders: [] });
+      const [currentPage, setCurrentPage] = useState('home');
+      const [newProduct, setNewProduct] = useState({ category: '', title: '', price: '', image: '' });
+
+      // Load settings, products, and categories from local storage on mount
+      useEffect(() => {
+        const savedSettings = localStorage.getItem('shopSettings');
+        if (savedSettings) {
+          setShopSettings(JSON.parse(savedSettings));
+        }
+        const savedProducts = localStorage.getItem('customProducts');
+        if (savedProducts) {
+          setProducts(JSON.parse(savedProducts));
+        }
+        const savedCategories = localStorage.getItem('categories');
+        if (savedCategories) {
+          setCategories(JSON.parse(savedCategories));
+        }
+        mockFetchProducts().then((initialProducts) => {
+          setProducts((prev) => [...prev, ...initialProducts]);
+        });
+        mockDomainStatus().then((data) => {
+          setShopSettings((prev) => ({ ...prev, domain: { ...prev.domain, url: data.domain } }));
+        });
+      }, []);
+
+      // Save settings, products, and categories to local storage
+      const saveSettings = () => {
+        localStorage.setItem('shopSettings', JSON.stringify(shopSettings));
+        localStorage.setItem('customProducts', JSON.stringify(products));
+        localStorage.setItem('categories', JSON.stringify(categories));
+        alert('Einstellungen, Produkte und Kategorien gespeichert!');
+      };
+
+      // Add new category
+      const addCategory = (category) => {
+        if (category && !categories.includes(category)) {
+          setCategories((prev) => [...prev, category]);
+        }
+      };
+
+      // Add new product
+      const addProduct = () => {
+        if (newProduct.category && newProduct.title && newProduct.price && newProduct.image) {
+          const product = {
+            id: Date.now(),
+            category: newProduct.category,
+            title: newProduct.title,
+            price: parseFloat(newProduct.price),
+            image: newProduct.image,
+          };
+          setProducts((prev) => [...prev, product]);
+          setNewProduct({ category: '', title: '', price: '', image: '' }); // Reset form
+        } else {
+          alert('Bitte alle Felder ausfüllen!');
+        }
+      };
+
+      // Add to cart
+      const addToCart = (product) => {
+        setCart((prev) => [...prev, product]);
+      };
+
+      // Import Printify products
+      const importPrintifyProducts = async () => {
+        const newProducts = await mockImportPrintifyProducts();
+        setProducts((prev) => [...prev, ...newProducts]);
+      };
+
+      // Process checkout
+      const handleCheckout = async (provider) => {
+        const total = cart.reduce((sum, item) => sum + item.price, 0);
+        const payment = await mockProcessPayment(provider, total);
+        if (payment.success) {
+          for (const item of cart) {
+            await mockPrintifyOrder(item.id, item.price);
+          }
+          setSalesData((prev) => ({
+            totalRevenue: prev.totalRevenue + total,
+            orders: [...prev.orders, { id: Date.now(), items: cart, total }],
+          }));
+          setCart([]);
+          alert('Bestellung erfolgreich!');
+        }
+      };
+
+      // Admin settings update
+      const updateSettings = (key, value) => {
+        setShopSettings((prev) => ({ ...prev, [key]: value }));
+      };
+
+      // Render Header
+      const Header = () => (
+        <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setCurrentPage('home')}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 glow wiggle"
+            >
+              Home
+            </button>
+            <h1 className="text-2xl font-bold">{shopSettings.shopName}</h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setCurrentPage('cart')}
+              className="px-4 py-2 rounded-xl bg-gray-600 hover:bg-gray-700 glow wiggle"
+            >
+              Warenkorb ({cart.length})
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setCurrentPage('admin')}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 glow wiggle"
+              >
+                Einstellungen
+              </button>
+            )}
+            <button
+              onClick={() => setIsAdmin(!isAdmin)}
+              className="px-4 py-2 rounded-xl bg-gray-600 hover:bg-gray-700 glow wiggle"
+            >
+              {isAdmin ? 'Logout' : 'Admin Login'}
+            </button>
+          </div>
+        </header>
+      );
+
+      // Render Home Page
+      const HomePage = () => (
+        <div className="p-6">
+          {shopSettings.banner && (
+            <img src={shopSettings.banner} alt="Banner" className="w-full h-48 object-cover rounded-xl mb-4" />
+          )}
+          <h2 className="text-3xl font-bold text-center mb-6">{shopSettings.slogan}</h2>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-4 py-2 rounded-xl ${
+                selectedCategory === null ? 'bg-blue-600 text-white' : 'bg-gray-200'
+              } hover:bg-blue-700 glow wiggle`}
+            >
+              Alle
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-4 py-2 rounded-xl ${
+                  selectedCategory === category ? 'bg-blue-600 text-white' : 'bg-gray-200'
+                } hover:bg-blue-700 glow wiggle`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {products
+              .filter((p) => !selectedCategory || p.category === selectedCategory)
+              .map((product) => (
+                <div
+                  key={product.id}
+                  className="p-4 bg-white rounded-xl shadow glow wiggle hover:scale-105 transition-transform"
+                >
+                  <img src={product.image} alt={product.title} className="w-full h-32 object-cover rounded-xl mb-2" />
+                  <h3 className="text-lg font-semibold">{shopSettings.shopName}</h3>
+                  <p>{product.title}</p>
+                  <p className="text-blue-600 font-bold">{product.price} €</p>
+                  <button
+                    onClick={() => addToCart(product)}
+                    className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 glow wiggle"
+                  >
+                    Kaufen
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      );
+
+      // Render Cart/Checkout Page
+      const CartPage = () => (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-4">Warenkorb</h2>
+          {cart.length === 0 ? (
+            <p>Der Warenkorb ist leer.</p>
+          ) : (
+            <div>
+              {cart.map((item, index) => (
+                <div key={index} className="p-4 bg-white rounded-xl shadow mb-2">
+                  <p>{item.title} - {item.price} €</p>
+                </div>
+              ))}
+              <p className="text-xl font-bold">
+                Gesamt: {cart.reduce((sum, item) => sum + item.price, 0)} €
+              </p>
+              {shopSettings.payment.stripe && (
+                <button
+                  onClick={() => handleCheckout('stripe')}
+                  className="mt-4 mr-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 glow wiggle"
+                >
+                  Mit Stripe bezahlen
+                </button>
+              )}
+              {shopSettings.payment.paypal && (
+                <button
+                  onClick={() => handleCheckout('paypal')}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 glow wiggle"
+                >
+                  Mit PayPal bezahlen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      );
+
+      // Render Admin Settings Page
+      const AdminPage = () => (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-4">Admin Einstellungen</h2>
+          <button
+            onClick={saveSettings}
+            className="mb-6 px-6 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 glow wiggle"
+          >
+            Einstellungen speichern
+          </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Shop Einstellungen</h3>
+              <input
+                type="text"
+                placeholder="Shopname"
+                value={shopSettings.shopName}
+                onChange={(e) => updateSettings('shopName', e.target.value)}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <textarea
+                placeholder="AGBs"
+                value={shopSettings.agb}
+                onChange={(e) => updateSettings('agb', e.target.value)}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="Slogan"
+                value={shopSettings.slogan}
+                onChange={(e) => updateSettings('slogan', e.target.value)}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="file"
+                onChange={(e) => updateSettings('banner', URL.createObjectURL(e.target.files[0]))}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Bankdaten</h3>
+              <input
+                type="text"
+                placeholder="Kontoinhaber"
+                value={shopSettings.bank.holder}
+                onChange={(e) => updateSettings('bank', { ...shopSettings.bank, holder: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="IBAN"
+                value={shopSettings.bank.iban}
+                onChange={(e) => updateSettings('bank', { ...shopSettings.bank, iban: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="BIC"
+                value={shopSettings.bank.bic}
+                onChange={(e) => updateSettings('bank', { ...shopSettings.bank, bic: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Zahlungsanbieter</h3>
+              <label className="flex items-center mb-2">
+                <input
+                  type="checkbox"
+                  checked={shopSettings.payment.stripe}
+                  onChange={(e) => updateSettings('payment', { ...shopSettings.payment, stripe: e.target.checked })}
+                  className="mr-2"
+                />
+                Stripe aktivieren
+              </label>
+              <input
+                type="text"
+                placeholder="Stripe API-Schlüssel"
+                value={shopSettings.payment.stripeKey}
+                onChange={(e) => updateSettings('payment', { ...shopSettings.payment, stripeKey: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <label className="flex items-center mb-2">
+                <input
+                  type="checkbox"
+                  checked={shopSettings.payment.paypal}
+                  onChange={(e) => updateSettings('payment', { ...shopSettings.payment, paypal: e.target.checked })}
+                  className="mr-2"
+                />
+                PayPal aktivieren
+              </label>
+              <input
+                type="text"
+                placeholder="PayPal Client-ID"
+                value={shopSettings.payment.paypalClientId}
+                onChange={(e) => updateSettings('payment', { ...shopSettings.payment, paypalClientId: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="PayPal Secret"
+                value={shopSettings.payment.paypalSecret}
+                onChange={(e) => updateSettings('payment', { ...shopSettings.payment, paypalSecret: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Auszahlung & Steuer</h3>
+              <select
+                value={shopSettings.payoutFrequency}
+                onChange={(e) => updateSettings('payoutFrequency', e.target.value)}
+                className="w-full p-2 mb-2 rounded-xl border"
+              >
+                <option value="weekly">Wöchentlich</option>
+                <option value="monthly">Monatlich</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Umsatzsteuer-ID"
+                value={shopSettings.vatId}
+                onChange={(e) => updateSettings('vatId', e.target.value)}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Kategorien</h3>
+              <input
+                type="text"
+                placeholder="Neue Kategorie"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && e.target.value) {
+                    addCategory(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <ul>
+                {categories.map((cat) => (
+                  <li key={cat} className="flex justify-between p-2 bg-gray-100 rounded-xl mb-1">
+                    {cat}
+                    <button
+                      onClick={() => setCategories((prev) => prev.filter((c) => c !== cat))}
+                      className="text-red-600"
+                    >
+                      Löschen
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Produkte hinzufügen</h3>
+              <select
+                value={newProduct.category}
+                onChange={(e) => setNewProduct((prev) => ({ ...prev, category: e.target.value }))}
+                className="w-full p-2 mb-2 rounded-xl border"
+              >
+                <option value="">Kategorie wählen</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Produkttitel"
+                value={newProduct.title}
+                onChange={(e) => setNewProduct((prev) => ({ ...prev, title: e.target.value }))}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="number"
+                placeholder="Preis (€)"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct((prev) => ({ ...prev, price: e.target.value }))}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="Bild-URL"
+                value={newProduct.image}
+                onChange={(e) => setNewProduct((prev) => ({ ...prev, image: e.target.value }))}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <button
+                onClick={addProduct}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 glow wiggle"
+              >
+                Produkt hinzufügen
+              </button>
+              <button
+                onClick={importPrintifyProducts}
+                className="mt-2 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 glow wiggle"
+              >
+                Printify Produkte importieren
+              </button>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Domain Verwaltung</h3>
+              <input
+                type="text"
+                placeholder="Domain Provider (z.B. GoDaddy)"
+                value={shopSettings.domain.provider}
+                onChange={(e) => updateSettings('domain', { ...shopSettings.domain, provider: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <input
+                type="text"
+                placeholder="Domain API-Schlüssel"
+                value={shopSettings.domain.apiKey}
+                onChange={(e) => updateSettings('domain', { ...shopSettings.domain, apiKey: e.target.value })}
+                className="w-full p-2 mb-2 rounded-xl border"
+              />
+              <p>Domain: {shopSettings.domain.url}</p>
+              <p>SSL: {shopSettings.domain.url ? 'Aktiv' : 'Inaktiv'}</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Dashboard</h3>
+              <p>Gesamtumsatz: {salesData.totalRevenue} €</p>
+              <h4 className="mt-2">Bestellungen</h4>
+              {salesData.orders.map((order) => (
+                <div key={order.id} className="p-2 bg-gray-100 rounded-xl mb-2">
+                  <p>Bestell-ID: {order.id}</p>
+                  <p>Gesamt: {order.total} €</p>
+                  <p>Artikel: {order.items.map((item) => item.title).join(', ')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      // Render Footer
+      const Footer = () => (
+        <footer className="bg-gray-800 text-white p-4 mt-6">
+          <div className="max-w-6xl mx-auto">
+            <p className="mb-2">AGBs: {shopSettings.agb}</p>
+            <p>YouTube: <a href="https://youtube.com" className="text-blue-400">Zum Kanal</a></p>
+            <p>Kontakt: +49 123 456789</p>
+            <p>Supportzeiten: Mo-Fr, 9:00-17:00</p>
+          </div>
+        </footer>
+      );
+
+      // Main Render
+      return (
+        <div className="font-sans">
+          <Header />
+          {currentPage === 'home' && <HomePage />}
+          {currentPage === 'cart' && <CartPage />}
+          {currentPage === 'admin' && isAdmin && <AdminPage />}
+          <Footer />
+        </div>
+      );
+    }
+
+    // Render App
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
