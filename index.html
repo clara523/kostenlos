@@ -597,6 +597,66 @@
 
 
 
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+
+function PayPalButton({ amount }) {
+  return (
+    <PayPalScriptProvider options={{ "client-id": "DEINE_CLIENT_ID" }}>
+      <PayPalButtons
+        style={{ layout: "horizontal" }}
+        createOrder={(data, actions) => {
+          return actions.order.create({
+            purchase_units: [{ amount: { value: amount.toString() } }],
+          });
+        }}
+        onApprove={(data, actions) => {
+          return actions.order.capture().then((details) => {
+            alert(`Zahlung abgeschlossen: ${details.payer.name.given_name}`);
+          });
+        }}
+      />
+    </PayPalScriptProvider>
+  );
+}
+
+export default PayPalButton;
+
+
+
+
+import StripeButton from "./StripeButton";
+import PayPalButton from "./PayPalButton";
+
+const cartItems = [{ name: "T-Shirt", price: 30, quantity: 1 }];
+
+function Checkout() {
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-4">Zahlung</h2>
+
+      <div className="space-y-4">
+        <StripeButton cartItems={cartItems} />
+        <PayPalButton amount={30} />
+      </div>
+    </div>
+  );
+}
+
+export default Checkout;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
