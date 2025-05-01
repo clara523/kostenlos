@@ -597,62 +597,65 @@
 
 
 
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+<form method="POST" action="/admin/save-footer.php">
+  <label>Handynummer:</label>
+  <input type="text" name="phone" required><br>
 
-function PayPalButton({ amount }) {
-  return (
-    <PayPalScriptProvider options={{ "client-id": "DEINE_CLIENT_ID" }}>
-      <PayPalButtons
-        style={{ layout: "horizontal" }}
-        createOrder={(data, actions) => {
-          return actions.order.create({
-            purchase_units: [{ amount: { value: amount.toString() } }],
-          });
-        }}
-        onApprove={(data, actions) => {
-          return actions.order.capture().then((details) => {
-            alert(`Zahlung abgeschlossen: ${details.payer.name.given_name}`);
-          });
-        }}
-      />
-    </PayPalScriptProvider>
-  );
-}
+  <label>Öffnungszeiten:</label>
+  <input type="text" name="hours" required><br>
 
-export default PayPalButton;
+  <label>AGB-Link:</label>
+  <input type="url" name="agb" required><br>
 
+  <label>YouTube-Link 1:</label>
+  <input type="url" name="youtube1"><br>
 
+  <label>YouTube-Link 2:</label>
+  <input type="url" name="youtube2"><br>
 
+  <label>YouTube-Link 3:</label>
+  <input type="url" name="youtube3"><br>
 
-import StripeButton from "./StripeButton";
-import PayPalButton from "./PayPalButton";
+  <label>Support-Link:</label>
+  <input type="url" name="support"><br>
 
-const cartItems = [{ name: "T-Shirt", price: 30, quantity: 1 }];
-
-function Checkout() {
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Zahlung</h2>
-
-      <div className="space-y-4">
-        <StripeButton cartItems={cartItems} />
-        <PayPalButton amount={30} />
-      </div>
-    </div>
-  );
-}
-
-export default Checkout;
+  <button type="submit">Speichern</button>
+</form>
 
 
 
 
+<?php
+$data = json_decode(file_get_contents('footer-data.json'), true);
+?>
+<footer>
+  <p>Kontakt: <?php echo $data['phone']; ?></p>
+  <p>Öffnungszeiten: <?php echo $data['hours']; ?></p>
+  <ul>
+    <li><a href="<?php echo $data['agb']; ?>">AGB</a></li>
+    <li><a href="<?php echo $data['youtube1']; ?>" target="_blank">YouTube 1</a></li>
+    <li><a href="<?php echo $data['youtube2']; ?>" target="_blank">YouTube 2</a></li>
+    <li><a href="<?php echo $data['youtube3']; ?>" target="_blank">YouTube 3</a></li>
+    <li><a href="<?php echo $data['support']; ?>">Support</a></li>
+  </ul>
+</footer>
 
 
 
 
+<?php
+$data = [
+  'phone' => $_POST['phone'],
+  'hours' => $_POST['hours'],
+  'agb' => $_POST['agb'],
+  'youtube1' => $_POST['youtube1'],
+  'youtube2' => $_POST['youtube2'],
+  'youtube3' => $_POST['youtube3'],
+  'support' => $_POST['support'],
+];
 
-
+file_put_contents('footer-data.json', json_encode($data));
+header('Location: /admin/success.html');
 
 
 
